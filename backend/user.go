@@ -63,7 +63,7 @@ func (u *User) ListMailboxes(subscribed bool) (mailboxes []backend.Mailbox, err 
 	return
 }
 
-func (u *User) GetMailbox(name string) (mailbox backend.Mailbox, err error) {
+func (u *User) GetMailboxNative(name string) (mailbox *Mailbox, err error) {
 	mailboxes, err := u.ListMailboxesNative(false)
 	if err != nil {
 		return
@@ -78,31 +78,70 @@ func (u *User) GetMailbox(name string) (mailbox backend.Mailbox, err error) {
 	return nil, errors.New("No such mailbox")
 }
 
+func (u *User) GetMailbox(name string) (mailbox backend.Mailbox, err error) {
+	return u.GetMailboxNative(name)
+}
+
+func (u *User) CreateMailboxNative(name string) (mailbox *Mailbox, err error) {
+	if name == "reindex" {
+		err := u.ReIndexMailbox()
+		return nil, err
+	}
+
+	mailbox, err = u.GetMailboxNative(name)
+	if err == nil {
+		return
+	}
+
+	_, err = db.Exec("INSERT INTO mailboxes (name, user, subscribed) VALUES (?, ?, ?)", name, u.id, 1)
+        // if there is an error inserting, handle it
+        if err != nil {
+                log.Printf(err.Error())
+                return
+        }
+
+	mailbox, err = u.GetMailboxNative(name)
+	return
+}
+
 func (u *User) CreateMailbox(name string) error {
-	return errors.New("Not implemented")
+	_, err := u.CreateMailboxNative(name)
+	return err
 }
 
 func (u *User) DeleteMailbox(name string) error {
 	if name == "INBOX" {
 		return errors.New("Cannot delete INBOX")
 	}
-	_, err := u.GetMailbox(name)
+	mbox, err := u.GetMailboxNative(name)
 	if err != nil {
 		return errors.New("No such mailbox")
 	}
 
-	return errors.New("Not implemented")
-	return nil
+	_, err = db.Exec("DELETE FROM mappings WHERE mailbox = ?", mbox.Id)
+        if err != nil {
+                log.Printf(err.Error())
+                return err
+        }
+
+	_, err = db.Exec("DELETE FROM mailboxes WHERE id = ?", mbox.Id)
+        // if there is an error inserting, handle it
+        if err != nil {
+                log.Printf(err.Error())
+                return err
+        }
+
+	return err
 }
 
 func (u *User) RenameMailbox(existingName, newName string) error {
-	_, err := u.GetMailbox(existingName)
+	mbox, err := u.GetMailboxNative(existingName)
 	if err != nil {
 		return err
 	}
 
-	mbox, err := u.GetMailbox(existingName)
-	if mbox != nil {
+	_, err = u.GetMailboxNative(newName)
+	if err == nil {
 		return errors.New("Mailbox already exists")
 	}
 
@@ -110,7 +149,11 @@ func (u *User) RenameMailbox(existingName, newName string) error {
 		return errors.New("Cannot rename INBOX")
 	}
 
-	return errors.New("Not implemented")
+	_, err = db.Exec("UPDATE mailboxes SET name=? WHERE id = ?", newName, mbox.Id)
+        if err != nil {
+                log.Printf(err.Error())
+                return err
+        }
 
 	return nil
 }
@@ -219,7 +262,13 @@ func (u *User) IndexMessage(body []byte, path string) error {
                 }
         }
 
-        insert2, err := db.Query("INSERT INTO mappings (user, mailbox, message) VALUES (?, ?, ?)", u.id, 1, id) //TODO: which mailbox id?
+	all, err := u.CreateMailboxNative("ALL")
+	if err != nil {
+		log.Printf(err.Error())
+		return err
+	}
+
+        insert2, err := db.Query("INSERT INTO mappings (user, mailbox, message) VALUES (?, ?, ?)", u.id, all.Id, id) //TODO: which mailbox id?
         // if there is an error inserting, handle it
         if err != nil {
                 panic(err.Error())
