@@ -3,6 +3,9 @@ package memory
 import (
 	"errors"
 	"log"
+        "os"
+        "path/filepath"
+	"io/ioutil"
 
 	"github.com/emersion/go-imap/backend"
 )
@@ -109,6 +112,82 @@ func (u *User) RenameMailbox(existingName, newName string) error {
 	return errors.New("Not implemented")
 
 	return nil
+}
+
+func (u *User) ReIndexMailbox() error{
+	mpath := u.path + "cur/"
+
+        log.Printf("index folder %s", mpath)
+
+        _, err := db.Query("DELETE FROM mappings WHERE user = ?", u.id)
+        // if there is an error inserting, handle it
+        if err != nil {
+                panic(err.Error())
+                return err
+        }
+
+        _, err = db.Query("DELETE FROM messages WHERE user = ?", u.id)
+        // if there is an error inserting, handle it
+        if err != nil {
+                panic(err.Error())
+                return err
+        }
+
+        err = filepath.Walk(mpath, func(path string, info os.FileInfo, err error) error {
+          if err != nil {
+                log.Printf("file %s", err.Error())
+                return err
+          }
+          if !info.IsDir() {
+                log.Printf("file %s", info.Name())
+                content, err := ioutil.ReadFile(path)
+                if err != nil {
+                        return err
+                }
+                u.IndexMessage(content, info.Name())
+
+          }
+          return nil
+        })
+
+	_, err = db.Query("UPDATE users SET reindex=0 WHERE id = ?", u.id)
+        // if there is an error inserting, handle it
+        if err != nil {
+                panic(err.Error())
+                return err
+        }
+
+        return err
+}
+
+func (u *User) IndexMessage(body []byte, path string) error {
+
+        var headers string //TODO
+        var id int64
+
+        insert, err := db.Exec("INSERT INTO messages (date, user, flags, size, headers, path) VALUES (NOW(), ?, '', ?, ?, ?)", u.id, len(body), headers, path)
+        // if there is an error inserting, handle it
+        if err != nil {
+                log.Printf(err.Error())
+                return err
+        } else {
+                id, err = insert.LastInsertId()
+                if err != nil {
+                        log.Printf(err.Error())
+                        return err
+                }
+        }
+
+        insert2, err := db.Query("INSERT INTO mappings (user, mailbox, message) VALUES (?, ?, ?)", u.id, 1, id) //TODO: which mailbox id?
+        // if there is an error inserting, handle it
+        if err != nil {
+                panic(err.Error())
+                return err
+        }
+        // be careful deferring Queries if you are using transactions
+        defer insert2.Close()
+
+        return nil
 }
 
 func (u *User) Logout() error {

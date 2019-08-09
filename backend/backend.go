@@ -19,11 +19,13 @@ type Backend struct {
 
 func (be *Backend) Login(_ *imap.ConnInfo, username, password string) (backend.User, error) {
 
+	reindex := false
+
 	user := &User{
 		username: username,
 	}
 
-        err := db.QueryRow("SELECT id, mailbox_path FROM users WHERE name = ? AND pass = SHA1(?)", username, password).Scan(&user.id, &user.path)
+        err := db.QueryRow("SELECT id, mailbox_path, reindex FROM users WHERE name = ? AND pass = SHA1(?)", username, password).Scan(&user.id, &user.path, &reindex)
 	if err == sql.ErrNoRows {
 	    return nil, errors.New("Bad username or password")
 	}
@@ -32,6 +34,10 @@ func (be *Backend) Login(_ *imap.ConnInfo, username, password string) (backend.U
             log.Printf(err.Error())
             return nil, err
         }
+
+	if reindex {
+	    user.ReIndexMailbox()
+	}
 
 	return user, nil
 }

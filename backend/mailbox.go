@@ -4,8 +4,8 @@ import (
 	"io/ioutil"
 	"time"
 	"log"
-	"os"
-	"path/filepath"
+//	"os"
+//	"path/filepath"
 
 	"github.com/emersion/go-imap"
 //	"github.com/emersion/go-imap/backend"
@@ -253,58 +253,6 @@ func (mbox *Mailbox) SearchMessages(uid bool, criteria *imap.SearchCriteria) ([]
 */
 //      log.Printf("%s",ids)
 	return ids, nil
-}
-
-func (mbox *Mailbox) IndexFolder() error{
-
-        log.Printf("index folder %s", mbox.Path)
-	err := filepath.Walk(mbox.Path, func(path string, info os.FileInfo, err error) error {
-	  if err != nil {
-		log.Printf("file %s", err.Error())
-		return err
-	  }
-	  if !info.IsDir() {
-		log.Printf("file %s", info.Name())
-		content, err := ioutil.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		mbox.IndexMessage(content, info.Name())
-
-	  }
-	  return nil
-	})
-	return err
-}
-
-func (mbox *Mailbox) IndexMessage(body []byte, path string) error {
-
-	var headers string //TODO
-	var id int64
-
-	insert, err := db.Exec("INSERT INTO messages (date, flags, size, headers, path) VALUES (NOW(), '', ?, ?, ?)", len(body), headers, path)
-	// if there is an error inserting, handle it
-	if err != nil {
-		log.Printf(err.Error())
-		return err
-	} else {
-		id, err = insert.LastInsertId()
-	        if err != nil {
-			log.Printf(err.Error())
-			return err
-		}
-	}
-
-	insert2, err := db.Query("INSERT INTO mappings (mailbox, message) VALUES (?, ?)", mbox.Id, id)
-	// if there is an error inserting, handle it
-	if err != nil {
-		panic(err.Error())
-		return err
-	}
-	// be careful deferring Queries if you are using transactions
-	defer insert2.Close()
-
-	return nil
 }
 
 func (mbox *Mailbox) CreateMessage(flags []string, date time.Time, body imap.Literal) error {
