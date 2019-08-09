@@ -98,6 +98,7 @@ func (mbox *Mailbox) messageCount() (uint32) {
 }
 
 func (mbox *Mailbox) Status(items []imap.StatusItem) (*imap.MailboxStatus, error) {
+	mbox.user.IndexNew()
 	status := imap.NewMailboxStatus(mbox.name, items)
 	status.Flags = mbox.flags()
 	status.PermanentFlags = []string{"\\*"}

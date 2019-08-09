@@ -33,6 +33,7 @@ func (u *User) ListMailboxesNative(subscribed bool) (mailboxes []*Mailbox, err e
 	for results.Next() {
 	    mailbox := &Mailbox{
 		    Path: u.path + "cur/",
+		    user: u,
 	    }
 	    // for each row, scan the result into our tag composite object
 	    err = results.Scan(&mailbox.Id, &mailbox.name, &mailbox.Subscribed)
@@ -112,6 +113,46 @@ func (u *User) RenameMailbox(existingName, newName string) error {
 	return errors.New("Not implemented")
 
 	return nil
+}
+
+func (u *User) IndexNew() error{
+	mpath := u.path + "new/"
+	cpath := u.path + "cur/"
+
+        log.Printf("index new %s", mpath)
+
+        err := filepath.Walk(mpath, func(path string, info os.FileInfo, err error) error {
+          if err != nil {
+                log.Printf("new walk err %s", err.Error())
+                return err
+          }
+          if !info.IsDir() {
+                log.Printf("new mail %s", info.Name())
+                content, err := ioutil.ReadFile(path)
+                if err != nil {
+			log.Fatal(err)
+                        return err
+                }
+                err = u.IndexMessage(content, info.Name())
+		if err != nil {
+			log.Fatal(err)
+			return err
+		}
+
+		newpath := cpath + info.Name()
+		err = os.Rename(path, newpath)
+		log.Printf("rename %s -> %s",path, newpath)
+		if err != nil {
+			log.Fatal(err)
+			return err
+		}
+		log.Printf("success")
+
+          }
+          return nil
+        })
+
+        return err
 }
 
 func (u *User) ReIndexMailbox() error{
