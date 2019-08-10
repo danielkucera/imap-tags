@@ -6,6 +6,7 @@ import (
         "os"
         "path/filepath"
 	"io/ioutil"
+	"strings"
 
 	"github.com/emersion/go-imap/backend"
 )
@@ -248,6 +249,8 @@ func (u *User) IndexMessage(body []byte, path string) error {
 
         var headers string //TODO
         var id int64
+
+	path = strings.Split(path, ":")[0]
 
         insert, err := db.Exec("INSERT INTO messages (date, user, flags, size, headers, path) VALUES (NOW(), ?, '', ?, ?, ?)", u.id, len(body), headers, path)
         // if there is an error inserting, handle it

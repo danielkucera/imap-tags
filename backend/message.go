@@ -40,27 +40,31 @@ func NewMessage(id uint32) (*Message, error) {
 	return msg, nil
 }
 
+func (m *Message) GetPath() (string, error) {
+	pathglob := "/home/danman/Maildir/cur/" + strings.Split(m.Path, ":")[0] + "*"
+
+        matches, err := filepath.Glob(pathglob)
+	log.Printf("found path: %s", matches)
+	if err != nil {
+		log.Printf(err.Error())
+		return "", err
+	}
+
+	return matches[0], nil
+}
+
 func (m *Message) Body() []byte {
 
 	if len(m.Content) > 0 {
 		return m.Content
 	}
 
-	pathglob := "/home/danman/Maildir/cur/" + strings.Split(m.Path, ":")[0] + "*"
-	log.Printf(pathglob)
-
-        matches, err := filepath.Glob(pathglob)
-
+	path, err := m.GetPath()
 	if err != nil {
-		log.Printf(err.Error())
 		return nil
 	}
 
-	if len(matches) < 1 {
-		return nil
-	}
-
-	body, err := ioutil.ReadFile(matches[0])
+	body, err := ioutil.ReadFile(path)
 
 	if err != nil {
 		log.Printf("body: %s", err.Error())
