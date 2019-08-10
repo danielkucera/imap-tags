@@ -46,11 +46,11 @@ func (be *Backend) Login(coninfo *imap.ConnInfo, username, password string) (bac
 	return user, nil
 }
 
-func New() *Backend {
+func New(db_string string) *Backend {
 
 	var err error
 	// Open up our database connection.
-	db, err = sql.Open("mysql", "imap-tags:imap-tags7373@tcp(127.0.0.1:3306)/imaptags?parseTime=true")
+	db, err = sql.Open("mysql", db_string+"?parseTime=true")
 
 	// if there is an error opening the connection, handle it
 	if err != nil {

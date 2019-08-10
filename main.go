@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"crypto/tls"
+	"os"
 
 	"github.com/emersion/go-imap/server"
 	"github.com/danielkucera/imap-tags/backend"
@@ -10,7 +11,7 @@ import (
 
 func main() {
 	// Create a memory backend
-	be := memory.New()
+	be := memory.New(os.Getenv("DB_CONN"))
 
 	// Create a new server
 	s := server.New(be)
