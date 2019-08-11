@@ -6,6 +6,7 @@ import (
 	"log"
 //	"os"
 //	"path/filepath"
+	"errors"
 
 	"github.com/emersion/go-imap"
 //	"github.com/emersion/go-imap/backend"
@@ -36,9 +37,22 @@ func (mbox *Mailbox) Info() (*imap.MailboxInfo, error) {
 	return info, nil
 }
 
+func (mbox *Mailbox) uidMax() uint32 {
+	var uid uint32
+        err := db.QueryRow("SELECT IFNULL(MAX(id), 0)+1 FROM messages WHERE user = ?", mbox.user.id).Scan(&uid)
+        if err != nil {
+            log.Printf(err.Error())
+            return 0
+        }
+
+	uid++
+	log.Printf("%d",uid)
+	return uid
+}
+
 func (mbox *Mailbox) uidNext() uint32 {
 	var uid uint32
-        err := db.QueryRow("SELECT MAX(message) FROM mappings WHERE mailbox = ?", mbox.Id).Scan(&uid)
+        err := db.QueryRow("SELECT IFNULL(MAX(message), 0)+1 FROM mappings WHERE mailbox = ?", mbox.Id).Scan(&uid)
         if err != nil {
             log.Printf(err.Error())
             return 0
@@ -132,18 +146,18 @@ func (mbox *Mailbox) Check() error {
 }
 
 func (mbox *Mailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.FetchItem, ch chan<- *imap.Message) error {
-	defer close(ch)
 	log.Printf("ListMessages %s %s %s", uid, seqSet.String(), items)
 
 	if uid {
 
 		//TODO: sanitize seqSet
+		maxuid := mbox.uidMax()
 		var muid uint32
-		for muid = 1; muid < 10000000 ; muid++ {
+		for muid = 1; muid < maxuid ; muid++ {
 			if !seqSet.Contains(muid){
 				continue
 			}
-			msg, err := NewMessage(muid)
+			msg, err := GetMessage(muid)
 			if err != nil {
 				log.Printf(err.Error())
 				return err
@@ -157,59 +171,10 @@ func (mbox *Mailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.Fe
 
 			ch <- m
 		}
-
 	} else {
-
-	        results, err := db.Query("SELECT messsage.id FROM mappings LEFT JOIN messages on mappings.message = message.id WHERE mailbox = ?", mbox.Id)
-	        if err != nil {
-	            log.Printf(err.Error())
-	            return err
-	        }
-	
-	        for results.Next() {
-	            msg := &imap.Message{}
-	            // for each row, scan the result into our tag composite object
-	            err = results.Scan(&msg.Uid)
-	            if err != nil {
-	                log.Printf(err.Error())
-	                return err
-	            }
-	
-		    ch <- msg
-	
-        	}
+		return errors.New("Not implemented")
 	}
 
-/*
-	i := 1
-
-	err := filepath.Walk(mbox.Path, func(path string, info os.FileInfo, err error) error {
-	  if !info.IsDir() {
-		seqNum := uint32(i + 1)
-
-		log.Printf("ListMessage id %d", seqNum)
-
-		var id uint32
-		id = seqNum
-
-		if !seqSet.Contains(id) {
-			return nil
-		}
-
-		msg := &imap.Message{
-			Uid: id,
-			//Path: path,
-		}
-
-		ch <- msg
-
-		i++
-	  }
-	  return nil
-	})
-
-	return err
-	*/
 	return nil
 }
 
@@ -297,26 +262,41 @@ func (mbox *Mailbox) UpdateMessagesFlags(uid bool, seqset *imap.SeqSet, op imap.
 	return nil
 }
 
-func (mbox *Mailbox) CopyMessages(uid bool, seqset *imap.SeqSet, destName string) error {
-	_, err := mbox.user.GetMailbox(destName)
+func (mbox *Mailbox) CopyMessages(uid bool, seqSet *imap.SeqSet, destName string) error {
+	dest, err := mbox.user.GetMailboxNative(destName)
 	if err != nil {
 		return err
 	}
 
-	for i, msg := range mbox.Messages {
-		var id uint32
-		if uid {
-			id = msg.Uid
-		} else {
-			id = uint32(i + 1)
+	if !uid {
+		return errors.New("Not implemented")
+	}
+
+	log.Printf("copy messages %d", seqSet)
+
+	var muid uint32
+	maxuid := mbox.uidMax()
+
+	for muid = 1; muid < maxuid ; muid++ {
+		if !seqSet.Contains(muid){
+			continue
 		}
-		if !seqset.Contains(id) {
+		log.Printf("copying muid %d", muid)
+
+		m, err := GetMessage(muid)
+		if err != nil {
+			log.Printf("get message by id %d %s",muid, err.Error())
 			continue
 		}
 
-	//	msgCopy := *msg
-	//	msgCopy.Uid = dest.uidNext()
-	//	dest.Messages = append(dest.Messages, &msgCopy)
+		insert, err := db.Query("INSERT INTO mappings (user, mailbox, message) VALUES (?, ?, ?)", mbox.user.id, dest.Id, m.Uid)
+		defer insert.Close()
+		if err != nil {
+			log.Printf(err.Error())
+		        return err
+	        }
+
+		log.Printf("copied muid %d", muid)
 	}
 
 	return nil

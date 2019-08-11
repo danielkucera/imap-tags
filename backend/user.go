@@ -2,12 +2,13 @@ package memory
 
 import (
 	"errors"
+	"fmt"
 	"log"
         "os"
         "path/filepath"
-	"io/ioutil"
 	"strings"
 
+	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/backend"
 )
 
@@ -172,12 +173,7 @@ func (u *User) IndexNew() error{
           }
           if !info.IsDir() {
                 log.Printf("new mail %s", info.Name())
-                content, err := ioutil.ReadFile(path)
-                if err != nil {
-			log.Fatal(err)
-                        return err
-                }
-                err = u.IndexMessage(content, info.Name())
+                err = u.IndexMessage(info.Name(), info.Size())
 		if err != nil {
 			log.Fatal(err)
 			return err
@@ -225,11 +221,7 @@ func (u *User) ReIndexMailbox() error{
           }
           if !info.IsDir() {
                 log.Printf("file %s", info.Name())
-                content, err := ioutil.ReadFile(path)
-                if err != nil {
-                        return err
-                }
-                u.IndexMessage(content, info.Name())
+                u.IndexMessage(info.Name(), info.Size())
 
           }
           return nil
@@ -245,14 +237,14 @@ func (u *User) ReIndexMailbox() error{
         return err
 }
 
-func (u *User) IndexMessage(body []byte, path string) error {
+func (u *User) IndexMessage(path string, length int64) error {
 
         var headers string //TODO
         var id int64
 
 	path = strings.Split(path, ":")[0]
 
-        insert, err := db.Exec("INSERT INTO messages (date, user, flags, size, headers, path) VALUES (NOW(), ?, '', ?, ?, ?)", u.id, len(body), headers, path)
+        insert, err := db.Exec("INSERT INTO messages (date, user, flags, size, headers, path) VALUES (NOW(), ?, '', ?, ?, ?)", u.id, length, headers, path)
         // if there is an error inserting, handle it
         if err != nil {
                 log.Printf(err.Error())
@@ -265,20 +257,25 @@ func (u *User) IndexMessage(body []byte, path string) error {
                 }
         }
 
+	m, err := GetMessage(uint32(id))
+        if err != nil {
+                log.Printf(err.Error())
+                return err
+	}
+
 	all, err := u.CreateMailboxNative("ALL")
 	if err != nil {
 		log.Printf(err.Error())
 		return err
 	}
 
-        insert2, err := db.Query("INSERT INTO mappings (user, mailbox, message) VALUES (?, ?, ?)", u.id, all.Id, id) //TODO: which mailbox id?
-        // if there is an error inserting, handle it
-        if err != nil {
-                panic(err.Error())
-                return err
-        }
-        // be careful deferring Queries if you are using transactions
-        defer insert2.Close()
+	seqSet, _ := imap.ParseSeqSet(fmt.Sprintf("%d:%d", m.Uid, m.Uid))
+
+	if !seqSet.Contains(m.Uid) {
+		log.Printf("OH SHIT!\n")
+	}
+
+	all.CopyMessages(true, seqSet, "ALL")
 
         return nil
 }

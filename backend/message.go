@@ -8,6 +8,7 @@ import (
 	"log"
 	"strings"
 	"io/ioutil"
+	"net/mail"
 	"path/filepath"
 
 	"github.com/emersion/go-imap"
@@ -26,7 +27,7 @@ type Message struct {
 	Path  string
 }
 
-func NewMessage(id uint32) (*Message, error) {
+func GetMessage(id uint32) (*Message, error) {
 	var flags string
 	msg := &Message{Uid: id}
         err := db.QueryRow("SELECT date,size,flags,headers,path FROM messages WHERE id = ?", id).Scan(&msg.Date, &msg.Size, &flags, &msg.Headers, &msg.Path)
@@ -87,6 +88,11 @@ func (m *Message) headerAndBody() (textproto.Header, io.Reader, error) {
 	body := bufio.NewReader(bodyr)
 	hdr, err := textproto.ReadHeader(body)
 	return hdr, body, err
+}
+
+func (m *Message) Parse() (*mail.Message, error) {
+	r := bytes.NewReader(m.Body())
+	return mail.ReadMessage(r)
 }
 
 func (m *Message) Fetch(seqNum uint32, items []imap.FetchItem) (*imap.Message, error) {

@@ -57,7 +57,6 @@ func New(db_string string) *Backend {
 		log.Printf(err.Error())
 	    panic(err.Error())
 	}
-	//defer dibi.Close()
 
 	return &Backend{}
 }
