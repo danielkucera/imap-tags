@@ -15,7 +15,9 @@ func main() {
 
 	// Create a new server
 	s := server.New(be)
-	s.Addr = ":993"
+	s.Addr = ":143"
+
+	s.AllowInsecureAuth = true
 
 	cert, err := tls.LoadX509KeyPair("/etc/letsencrypt/live/danman.eu/fullchain.pem", "/etc/letsencrypt/live/danman.eu/privkey.pem")
 	if err != nil {
@@ -25,7 +27,7 @@ func main() {
 	s.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cert}}
 
 	log.Printf("Starting IMAP server at %s", s.Addr)
-	if err := s.ListenAndServeTLS(); err != nil {
+	if err := s.ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}
 }
