@@ -3,7 +3,10 @@ package memory
 
 import (
 	"errors"
+	"fmt"
 	"log"
+	"runtime"
+	"strings"
 
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/backend"
@@ -17,11 +20,19 @@ var db *sql.DB
 type Backend struct {
 }
 
+func DoLog(format string, a ...interface{}) {
+	_, file, linen, _ := runtime.Caller(1)
+	efile := strings.Split(file, "/")
+	sfile := efile[len(efile)-1]
+	line := fmt.Sprintf(format, a...)
+	log.Printf("%s:%d - %s", sfile, linen, line)
+}
+
 func (be *Backend) Login(coninfo *imap.ConnInfo, username, password string) (backend.User, error) {
 	var err error
 
-	log.Printf("login %s from %s", username, coninfo.RemoteAddr)
-	defer log.Printf("login %s from %s err %s", username, coninfo.RemoteAddr, err)
+	DoLog("login %s from %s", username, coninfo.RemoteAddr)
+	defer DoLog("login %s from %s err %s", username, coninfo.RemoteAddr, err)
 
 	reindex := false
 
@@ -35,7 +46,7 @@ func (be *Backend) Login(coninfo *imap.ConnInfo, username, password string) (bac
 	}
 
         if err != nil {
-            log.Printf(err.Error())
+            DoLog(err.Error())
             return nil, err
         }
 
@@ -54,7 +65,7 @@ func New(db_string string) *Backend {
 
 	// if there is an error opening the connection, handle it
 	if err != nil {
-		log.Printf(err.Error())
+	    DoLog(err.Error())
 	    panic(err.Error())
 	}
 

@@ -3,7 +3,6 @@ package memory
 import (
 	"errors"
 	"fmt"
-	"log"
         "os"
         "path/filepath"
 	"strings"
@@ -27,8 +26,9 @@ func (u *User) Username() string {
 func (u *User) ListMailboxesNative(subscribed bool) (mailboxes []*Mailbox, err error) {
 	// Execute the query
 	results, err := db.Query("SELECT id,name,subscribed FROM mailboxes WHERE user = ?", 1)
+	defer results.Close()
 	if err != nil {
-	    log.Printf(err.Error())
+	    DoLog(err.Error())
 	    return mailboxes, err
 	}
 
@@ -40,7 +40,7 @@ func (u *User) ListMailboxesNative(subscribed bool) (mailboxes []*Mailbox, err e
 	    // for each row, scan the result into our tag composite object
 	    err = results.Scan(&mailbox.Id, &mailbox.name, &mailbox.Subscribed)
 	    if err != nil {
-	        log.Printf(err.Error())
+	        DoLog(err.Error())
 	        return mailboxes, err
 	    }
 
@@ -56,6 +56,7 @@ func (u *User) ListMailboxesNative(subscribed bool) (mailboxes []*Mailbox, err e
 func (u *User) ListMailboxes(subscribed bool) (mailboxes []backend.Mailbox, err error) {
 	mboxes, err := u.ListMailboxesNative(false)
 	if err != nil {
+		DoLog(err.Error())
 		return
 	}
 
@@ -68,6 +69,7 @@ func (u *User) ListMailboxes(subscribed bool) (mailboxes []backend.Mailbox, err 
 func (u *User) GetMailboxNative(name string) (mailbox *Mailbox, err error) {
 	mailboxes, err := u.ListMailboxesNative(false)
 	if err != nil {
+		DoLog(err.Error())
 		return
 	}
 
@@ -87,6 +89,7 @@ func (u *User) GetMailbox(name string) (mailbox backend.Mailbox, err error) {
 func (u *User) CreateMailboxNative(name string) (mailbox *Mailbox, err error) {
 	if name == "reindex" {
 		err := u.ReIndexMailbox()
+		DoLog(err.Error())
 		return nil, err
 	}
 
@@ -98,16 +101,22 @@ func (u *User) CreateMailboxNative(name string) (mailbox *Mailbox, err error) {
 	_, err = db.Exec("INSERT INTO mailboxes (name, user, subscribed) VALUES (?, ?, ?)", name, u.id, 1)
         // if there is an error inserting, handle it
         if err != nil {
-                log.Printf(err.Error())
+		DoLog(err.Error())
                 return
         }
 
 	mailbox, err = u.GetMailboxNative(name)
+        if err != nil {
+		DoLog(err.Error())
+        }
 	return
 }
 
 func (u *User) CreateMailbox(name string) error {
 	_, err := u.CreateMailboxNative(name)
+        if err != nil {
+		DoLog(err.Error())
+        }
 	return err
 }
 
@@ -122,14 +131,14 @@ func (u *User) DeleteMailbox(name string) error {
 
 	_, err = db.Exec("DELETE FROM mappings WHERE mailbox = ?", mbox.Id)
         if err != nil {
-                log.Printf(err.Error())
+		DoLog(err.Error())
                 return err
         }
 
 	_, err = db.Exec("DELETE FROM mailboxes WHERE id = ?", mbox.Id)
         // if there is an error inserting, handle it
         if err != nil {
-                log.Printf(err.Error())
+		DoLog(err.Error())
                 return err
         }
 
@@ -139,6 +148,7 @@ func (u *User) DeleteMailbox(name string) error {
 func (u *User) RenameMailbox(existingName, newName string) error {
 	mbox, err := u.GetMailboxNative(existingName)
 	if err != nil {
+		DoLog(err.Error())
 		return err
 	}
 
@@ -153,7 +163,7 @@ func (u *User) RenameMailbox(existingName, newName string) error {
 
 	_, err = db.Exec("UPDATE mailboxes SET name=? WHERE id = ?", newName, mbox.Id)
         if err != nil {
-                log.Printf(err.Error())
+		DoLog(err.Error())
                 return err
         }
 
@@ -164,29 +174,29 @@ func (u *User) IndexNew() error{
 	mpath := u.path + "new/"
 	cpath := u.path + "cur/"
 
-        log.Printf("index new %s", mpath)
+        DoLog("index new %s", mpath)
 
         err := filepath.Walk(mpath, func(path string, info os.FileInfo, err error) error {
           if err != nil {
-                log.Printf("new walk err %s", err.Error())
+		DoLog(err.Error())
                 return err
           }
           if !info.IsDir() {
-                log.Printf("new mail %s", info.Name())
+                DoLog("new mail %s", info.Name())
                 err = u.IndexMessage(info.Name(), info.Size())
 		if err != nil {
-			log.Fatal(err)
+			DoLog(err.Error())
 			return err
 		}
 
 		newpath := cpath + info.Name()
 		err = os.Rename(path, newpath)
-		log.Printf("rename %s -> %s",path, newpath)
+		DoLog("rename %s -> %s",path, newpath)
 		if err != nil {
-			log.Fatal(err)
+			DoLog(err.Error())
 			return err
 		}
-		log.Printf("success")
+		DoLog("success")
 
           }
           return nil
@@ -198,29 +208,27 @@ func (u *User) IndexNew() error{
 func (u *User) ReIndexMailbox() error{
 	mpath := u.path + "cur/"
 
-        log.Printf("index folder %s", mpath)
+        DoLog("index folder %s", mpath)
 
         _, err := db.Query("DELETE FROM mappings WHERE user = ?", u.id)
-        // if there is an error inserting, handle it
         if err != nil {
-                panic(err.Error())
+                DoLog(err.Error())
                 return err
         }
 
         _, err = db.Query("DELETE FROM messages WHERE user = ?", u.id)
-        // if there is an error inserting, handle it
         if err != nil {
-                panic(err.Error())
+                DoLog(err.Error())
                 return err
         }
 
         err = filepath.Walk(mpath, func(path string, info os.FileInfo, err error) error {
           if err != nil {
-                log.Printf("file %s", err.Error())
+                DoLog("file %s", err.Error())
                 return err
           }
           if !info.IsDir() {
-                log.Printf("file %s", info.Name())
+                DoLog("file %s", info.Name())
                 u.IndexMessage(info.Name(), info.Size())
 
           }
@@ -228,9 +236,8 @@ func (u *User) ReIndexMailbox() error{
         })
 
 	_, err = db.Query("UPDATE users SET reindex=0 WHERE id = ?", u.id)
-        // if there is an error inserting, handle it
         if err != nil {
-                panic(err.Error())
+                DoLog(err.Error())
                 return err
         }
 
@@ -245,35 +252,30 @@ func (u *User) IndexMessage(path string, length int64) error {
 	path = strings.Split(path, ":")[0]
 
         insert, err := db.Exec("INSERT INTO messages (date, user, flags, size, headers, path) VALUES (NOW(), ?, '', ?, ?, ?)", u.id, length, headers, path)
-        // if there is an error inserting, handle it
         if err != nil {
-                log.Printf(err.Error())
+                DoLog(err.Error())
                 return err
         } else {
                 id, err = insert.LastInsertId()
                 if err != nil {
-                        log.Printf(err.Error())
+                	DoLog(err.Error())
                         return err
                 }
         }
 
 	m, err := GetMessage(uint32(id))
         if err != nil {
-                log.Printf(err.Error())
+                DoLog(err.Error())
                 return err
 	}
 
 	all, err := u.CreateMailboxNative("ALL")
 	if err != nil {
-		log.Printf(err.Error())
+                DoLog(err.Error())
 		return err
 	}
 
 	seqSet, _ := imap.ParseSeqSet(fmt.Sprintf("%d:%d", m.Uid, m.Uid))
-
-	if !seqSet.Contains(m.Uid) {
-		log.Printf("OH SHIT!\n")
-	}
 
 	all.CopyMessages(true, seqSet, "ALL")
 

@@ -96,6 +96,7 @@ func (m *Message) Parse() (*mail.Message, error) {
 }
 
 func (m *Message) Fetch(seqNum uint32, items []imap.FetchItem) (*imap.Message, error) {
+	DoLog("fetch seq %d", seqNum)
 	fetched := imap.NewMessage(seqNum, items)
 	for _, item := range items {
 		switch item {
@@ -132,6 +133,7 @@ func (m *Message) Fetch(seqNum uint32, items []imap.FetchItem) (*imap.Message, e
 		}
 	}
 
+	DoLog("fetched seq %d", seqNum)
 	return fetched, nil
 }
 
