@@ -45,11 +45,11 @@ func (m *Message) GetPath() (string, error) {
 	pathglob := "/home/danman/Maildir/cur/" + strings.Split(m.Path, ":")[0] + "*"
 
         matches, err := filepath.Glob(pathglob)
-	log.Printf("found path: %s", matches)
 	if err != nil {
 		log.Printf(err.Error())
 		return "", err
 	}
+	log.Printf("found path: %s", matches)
 
 	return matches[0], nil
 }
