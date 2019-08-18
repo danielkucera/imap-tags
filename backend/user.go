@@ -88,10 +88,7 @@ func (u *User) GetMailbox(name string) (mailbox backend.Mailbox, err error) {
 
 func (u *User) CreateMailboxNative(name string, dynamic bool) (mailbox *Mailbox, err error) {
 	if name == "reindex" {
-		err := u.ReIndexMailbox()
-		if err != nil {
-			DoLog(err.Error())
-		}
+		go u.ReIndexMailbox()
 		return nil, err
 	}
 
@@ -287,6 +284,8 @@ func (u *User) IndexMessage(path string, length int64) error {
 
 	orig_to := mp.Header.Get("X-Original-To")
 
+	is_list := len(mp.Header.Get("List-Id")) > 0
+
 	all, err := u.CreateMailboxNative("ALL", true)
 	if err != nil {
                 DoLog(err.Error())
@@ -303,6 +302,10 @@ func (u *User) IndexMessage(path string, length int64) error {
 
 	all.CopyMessages(true, seqSet, "ALL")
 	all.CopyMessages(true, seqSet, orig_to)
+
+	if !is_list {
+		all.CopyMessages(true, seqSet, "INBOX")
+	}
 
         return nil
 }
