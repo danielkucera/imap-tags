@@ -73,9 +73,11 @@ func (m *Message) Body() []byte {
 	}
 
 	log.Printf("body len: %d", len(body))
-	m.Content = body
 
-	return body
+	m.Content = bytes.ReplaceAll(body, []byte("\n"), []byte("\r\n"))
+	//DoLog(string(m.Content))
+
+	return m.Content
 }
 
 func (m *Message) entity() (*message.Entity, error) {
