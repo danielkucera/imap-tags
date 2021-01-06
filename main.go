@@ -9,6 +9,14 @@ import (
 	"github.com/danielkucera/imap-tags/backend"
 )
 
+type Logger struct {
+}
+
+func (l Logger) Write(p []byte) (n int, err error) {
+	log.Printf("%s", p)
+	return len(p), nil
+}
+
 func main() {
 	// Create a memory backend
 	be := memory.New(os.Getenv("DB_CONN"))
@@ -18,6 +26,8 @@ func main() {
 	s.Addr = ":143"
 
 	s.AllowInsecureAuth = true
+
+	s.Debug = Logger{}
 
 	cert, err := tls.LoadX509KeyPair("/etc/letsencrypt/live/danman.eu/fullchain.pem", "/etc/letsencrypt/live/danman.eu/privkey.pem")
 	if err != nil {

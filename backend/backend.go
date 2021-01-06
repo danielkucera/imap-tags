@@ -25,7 +25,7 @@ func DoLog(format string, a ...interface{}) {
 	efile := strings.Split(file, "/")
 	sfile := efile[len(efile)-1]
 	line := fmt.Sprintf(format, a...)
-	log.Printf("%s:%d - %s", sfile, linen, line)
+	go log.Printf("%s:%d - %s", sfile, linen, line)
 }
 
 func (be *Backend) Login(coninfo *imap.ConnInfo, username, password string) (backend.User, error) {
@@ -61,13 +61,13 @@ func New(db_string string) *Backend {
 
 	var err error
 	// Open up our database connection.
-	db, err = sql.Open("mysql", db_string+"?parseTime=true")
-
+	db, err = sql.Open("mysql", db_string+"?parseTime=true&autocommit=true")
 	// if there is an error opening the connection, handle it
 	if err != nil {
 	    DoLog(err.Error())
 	    panic(err.Error())
 	}
+	db.SetMaxOpenConns(10)
 
 	return &Backend{}
 }

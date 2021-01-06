@@ -16,7 +16,6 @@ type User struct {
 	username  string
 	password  string
 	path      string
-//	mailboxes map[string]*Mailbox
 }
 
 func (u *User) Username() string {
@@ -211,19 +210,19 @@ func (u *User) ReIndexMailbox() error{
 
         DoLog("index folder %s", mpath)
 
-        _, err := db.Query("DELETE FROM mappings WHERE user = ?", u.id)
+        _, err := db.Exec("DELETE FROM mappings WHERE user = ?", u.id)
         if err != nil {
                 DoLog(err.Error())
                 return err
         }
 
-        _, err = db.Query("DELETE FROM mailboxes WHERE dynamic = 1 AND user = ?", u.id)
+        _, err = db.Exec("DELETE FROM mailboxes WHERE dynamic = 1 AND user = ?", u.id)
         if err != nil {
                 DoLog(err.Error())
                 return err
         }
 
-        _, err = db.Query("UPDATE messages SET indexed=0 WHERE user = ?", u.id)
+        _, err = db.Exec("UPDATE messages SET indexed=0 WHERE user = ?", u.id)
         if err != nil {
                 DoLog(err.Error())
                 return err
@@ -242,7 +241,7 @@ func (u *User) ReIndexMailbox() error{
           return nil
         })
 
-	_, err = db.Query("UPDATE users SET reindex=0 WHERE id = ?", u.id)
+	_, err = db.Exec("UPDATE users SET reindex=0 WHERE id = ?", u.id)
         if err != nil {
                 DoLog(err.Error())
                 return err

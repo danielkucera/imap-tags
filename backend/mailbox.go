@@ -2,21 +2,18 @@ package memory
 
 import (
 	"io/ioutil"
+	"fmt"
+	"strings"
 	"time"
-//	"os"
-//	"path/filepath"
 	"errors"
 
 	"github.com/emersion/go-imap"
-//	"github.com/emersion/go-imap/backend"
-	"github.com/emersion/go-imap/backend/backendutil"
 )
 
 var Delimiter = "/"
 
 type Mailbox struct {
 	Subscribed bool
-	Messages   []*Message
 
 	Id   int32
 	Path string
@@ -64,6 +61,7 @@ func (mbox *Mailbox) uidNext() uint32 {
 
 func (mbox *Mailbox) flags() []string {
 	flagsMap := make(map[string]bool)
+/*
 	for _, msg := range mbox.Messages {
 		for _, f := range msg.Flags {
 			if !flagsMap[f] {
@@ -71,33 +69,13 @@ func (mbox *Mailbox) flags() []string {
 			}
 		}
 	}
-
+*/
 	var flags []string
 	for f := range flagsMap {
 		flags = append(flags, f)
 	}
 	return flags
 }
-
-func (mbox *Mailbox) unseenSeqNum() uint32 {
-	for i, msg := range mbox.Messages {
-		seqNum := uint32(i + 1)
-
-		seen := false
-		for _, flag := range msg.Flags {
-			if flag == imap.SeenFlag {
-				seen = true
-				break
-			}
-		}
-
-		if !seen {
-			return seqNum
-		}
-	}
-	return 0
-}
-
 
 func (mbox *Mailbox) messageCount() (uint32) {
 	var count uint32
@@ -115,7 +93,6 @@ func (mbox *Mailbox) Status(items []imap.StatusItem) (*imap.MailboxStatus, error
 	status := imap.NewMailboxStatus(mbox.name, items)
 	status.Flags = mbox.flags()
 	status.PermanentFlags = []string{"\\*"}
-	status.UnseenSeqNum = mbox.unseenSeqNum()
 
 	for _, name := range items {
 		switch name {
@@ -144,18 +121,27 @@ func (mbox *Mailbox) Check() error {
 	return nil
 }
 
+func (mbox *Mailbox) seqSetToList(seqSet *imap.SeqSet) []uint32 {
+	seqList := make([]uint32, 0)
+	maxuid := mbox.uidMax()
+	var muid uint32
+	for muid = 1; muid < maxuid ; muid++ {
+		if seqSet.Contains(muid){
+			seqList = append(seqList, muid)
+		}
+	}
+	return seqList
+}
+
 func (mbox *Mailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.FetchItem, ch chan<- *imap.Message) error {
 	DoLog("ListMessages %s %s %s", uid, seqSet.String(), items)
+	defer close(ch)
 
 	if uid {
 
 		//TODO: sanitize seqSet
-		maxuid := mbox.uidMax()
-		var muid uint32
-		for muid = 1; muid < maxuid ; muid++ {
-			if !seqSet.Contains(muid){
-				continue
-			}
+		seqList := mbox.seqSetToList(seqSet)
+		for _, muid := range seqList { 
 			DoLog("Listing %d", muid)
 			msg, err := GetMessage(muid)
 			if err != nil {
@@ -172,7 +158,6 @@ func (mbox *Mailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.Fe
 			DoLog("Listed %d", muid)
 			ch <- m
 		}
-		close(ch)
 	} else {
 		return errors.New("Not implemented")
 	}
@@ -181,12 +166,19 @@ func (mbox *Mailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.Fe
 	return nil
 }
 
-func (mbox *Mailbox) SearchMessages(uid bool, criteria *imap.SearchCriteria) ([]uint32, error) {
+func (mbox *Mailbox) SearchMessages(uid bool, c *imap.SearchCriteria) ([]uint32, error) {
 	var ids []uint32
 	var id uint32
-	DoLog("SearchMessages %s %s", uid, criteria)
 
-        results, err := db.Query("SELECT message FROM mappings WHERE mailbox = ?", mbox.Id)
+	DoLog("SearchMessages uid=%v criteria=%v", uid, c)
+
+	query := "SELECT message FROM mappings LEFT JOIN messages ON mappings.message = messages.id WHERE mappings.mailbox = ? "
+
+	if c.Uid != nil {
+	    query += fmt.Sprintf("AND mappings.message = %d", c.Uid)
+	}
+
+        results, err := db.Query(query, mbox.Id)
 	defer results.Close()
         if err != nil {
             DoLog(err.Error())
@@ -200,28 +192,31 @@ func (mbox *Mailbox) SearchMessages(uid bool, criteria *imap.SearchCriteria) ([]
             	DoLog(err.Error())
                 return ids, err
             }
+	    msg, err := GetMessage(id)
+            if err != nil {
+            	DoLog(err.Error())
+                return ids, err
+            }
+	    /*
+	    TODO: do matching
+	    https://github.com/emersion/go-imap/blob/5a03a09eba6d2942e2903c4abd6435155d0b996b/backend/backendutil/search.go#L71
+	    https://github.com/emersion/go-imap/blob/5a03a09eba6d2942e2903c4abd6435155d0b996b/search.go#L90
+
+	    ok, err := msg.Match(0, criteria)
+	    if err != nil || !ok {
+		continue
+	    }
+	    */
+
+	    var id uint32
+	    if uid {
+		id = msg.Uid
+	    } else {
+		return nil, errors.New("Not implemented")
+	    }
 
             ids = append(ids, id)
         }
-/*
-	for i, msg := range mbox.Messages {
-		seqNum := uint32(i + 1)
-
-		ok, err := msg.Match(seqNum, criteria)
-		if err != nil || !ok {
-			continue
-		}
-
-		var id uint32
-		if uid {
-			id = msg.Uid
-		} else {
-			id = seqNum
-		}
-		ids = append(ids, id)
-	}
-*/
-        DoLog("found ids %s",ids)
 	return ids, nil
 }
 
@@ -250,19 +245,53 @@ func (mbox *Mailbox) CreateMessage(flags []string, date time.Time, body imap.Lit
 }
 
 func (mbox *Mailbox) UpdateMessagesFlags(uid bool, seqset *imap.SeqSet, op imap.FlagsOp, flags []string) error {
-	for i, msg := range mbox.Messages {
-		var id uint32
-		if uid {
-			id = msg.Uid
-		} else {
-			id = uint32(i + 1)
+	DoLog("updating flags: %v %v", seqset, flags)
+	messages := make(chan *imap.Message)
+	go func() {
+		for {
+			msg, more := <-messages
+			if more {
+				newFlagsList := make([]string, 0)
+				flagSet := make(map[string]bool, 0)
+				for _,setflag := range msg.Flags {
+					flagSet[setflag] = true
+				}
+				for _, flag := range flags {
+					if _, ok := flagSet[flag]; ok {
+						delete(flagSet, flag)
+					} else {
+						flagSet[flag] = true
+					}
+				}
+				for key := range flagSet {
+					if key == "\\Deleted" {
+						_, err := db.Exec("DELETE FROM `mappings` WHERE message = ? AND mailbox = ?", msg.Uid, mbox.Id)
+						if err != nil {
+							DoLog("mesage delete failed: %s", err)
+						}
+					} else {
+						newFlagsList = append(newFlagsList, key)
+					}
+				}
+				newflags := strings.Join(newFlagsList, ",")
+				DoLog("updating flag for %v, %d, to %s", msg, msg.Uid, newflags)
+				_, err := db.Exec("UPDATE `messages` SET flags=? WHERE id = ?", newflags, msg.Uid)
+				if err != nil {
+					DoLog("flag update failed: %s", err)
+				} else {
+					DoLog("flag update ok")
+				}
+			} else {
+				return
+			}
 		}
-		if !seqset.Contains(id) {
-			continue
-		}
-
-		msg.Flags = backendutil.UpdateFlags(msg.Flags, op, flags)
+	}()
+	items := []imap.FetchItem{imap.FetchUid, imap.FetchFlags}
+	err := mbox.ListMessages(uid, seqset, items, messages)
+	if err != nil {
+		return err
 	}
+	DoLog("updated flags: %v %v", seqset, flags)
 
 	return nil
 }
@@ -295,8 +324,7 @@ func (mbox *Mailbox) CopyMessages(uid bool, seqSet *imap.SeqSet, destName string
 			continue
 		}
 
-		insert, err := db.Query("INSERT INTO mappings (user, mailbox, message) VALUES (?, ?, ?)", mbox.user.id, dest.Id, m.Uid)
-		defer insert.Close()
+		_, err = db.Exec("INSERT INTO mappings (user, mailbox, message) VALUES (?, ?, ?)", mbox.user.id, dest.Id, m.Uid)
 		if err != nil {
             		DoLog(err.Error())
 		        return err
@@ -309,21 +337,6 @@ func (mbox *Mailbox) CopyMessages(uid bool, seqSet *imap.SeqSet, destName string
 }
 
 func (mbox *Mailbox) Expunge() error {
-	for i := len(mbox.Messages) - 1; i >= 0; i-- {
-		msg := mbox.Messages[i]
-
-		deleted := false
-		for _, flag := range msg.Flags {
-			if flag == imap.DeletedFlag {
-				deleted = true
-				break
-			}
-		}
-
-		if deleted {
-			mbox.Messages = append(mbox.Messages[:i], mbox.Messages[i+1:]...)
-		}
-	}
-
+	//Not needed, we are deleting on flag set
 	return nil
 }

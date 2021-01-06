@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"io"
 	"time"
-	"log"
 	"strings"
 	"io/ioutil"
 	"net/mail"
@@ -32,11 +31,13 @@ func GetMessage(id uint32) (*Message, error) {
 	msg := &Message{Uid: id}
         err := db.QueryRow("SELECT date,size,flags,headers,path FROM messages WHERE id = ?", id).Scan(&msg.Date, &msg.Size, &flags, &msg.Headers, &msg.Path)
         if err != nil {
-            log.Printf(err.Error())
+            DoLog(err.Error())
             return nil, err
         }
 
-	msg.Flags = strings.Split(flags, ",")
+	if len(flags)>0 {
+		msg.Flags = strings.Split(flags, ",")
+	}
 
 	return msg, nil
 }
@@ -46,10 +47,10 @@ func (m *Message) GetPath() (string, error) {
 
         matches, err := filepath.Glob(pathglob)
 	if err != nil {
-		log.Printf(err.Error())
+		DoLog(err.Error())
 		return "", err
 	}
-	log.Printf("found path: %s", matches)
+	DoLog("found path: %s", matches)
 
 	return matches[0], nil
 }
@@ -68,11 +69,11 @@ func (m *Message) Body() []byte {
 	body, err := ioutil.ReadFile(path)
 
 	if err != nil {
-		log.Printf("body: %s", err.Error())
+		DoLog("body read err: %s", err.Error())
 		return nil
 	}
 
-	log.Printf("body len: %d", len(body))
+	DoLog("body len: %d", len(body))
 
 	m.Content = bytes.ReplaceAll(body, []byte("\n"), []byte("\r\n"))
 	//DoLog(string(m.Content))
@@ -109,7 +110,7 @@ func (m *Message) Fetch(seqNum uint32, items []imap.FetchItem) (*imap.Message, e
 			hdr, body, _ := m.headerAndBody()
 			fetched.BodyStructure, _ = backendutil.FetchBodyStructure(hdr, body, item == imap.FetchBodyStructure)
 			fetched.BodyStructure.Size = 1 //workaround until size parser implementation
-			log.Printf("bodystruct %s", fetched.BodyStructure)
+			//log.Printf("bodystruct %v+ - err: %s", fetched.BodyStructure, err)
 		case imap.FetchFlags:
 			fetched.Flags = m.Flags
 		case imap.FetchInternalDate:
