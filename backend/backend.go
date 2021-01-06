@@ -40,18 +40,18 @@ func (be *Backend) Login(coninfo *imap.ConnInfo, username, password string) (bac
 		username: username,
 	}
 
-        err = db.QueryRow("SELECT id, mailbox_path, reindex FROM users WHERE name = ? AND pass = SHA1(?)", username, password).Scan(&user.id, &user.path, &reindex)
+	err = db.QueryRow("SELECT id, mailbox_path, reindex FROM users WHERE name = ? AND pass = SHA1(?)", username, password).Scan(&user.id, &user.path, &reindex)
 	if err == sql.ErrNoRows {
-	    return nil, errors.New("Bad username or password")
+		return nil, errors.New("Bad username or password")
 	}
 
-        if err != nil {
-            DoLog(err.Error())
-            return nil, err
-        }
+	if err != nil {
+		DoLog(err.Error())
+		return nil, err
+	}
 
 	if reindex {
-	    user.ReIndexMailbox()
+		user.ReIndexMailbox()
 	}
 
 	return user, nil
@@ -64,8 +64,8 @@ func New(db_string string) *Backend {
 	db, err = sql.Open("mysql", db_string+"?parseTime=true&autocommit=true")
 	// if there is an error opening the connection, handle it
 	if err != nil {
-	    DoLog(err.Error())
-	    panic(err.Error())
+		DoLog(err.Error())
+		panic(err.Error())
 	}
 	db.SetMaxOpenConns(10)
 

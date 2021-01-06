@@ -4,11 +4,11 @@ import (
 	"bufio"
 	"bytes"
 	"io"
-	"time"
-	"strings"
 	"io/ioutil"
 	"net/mail"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/backend/backendutil"
@@ -17,25 +17,25 @@ import (
 )
 
 type Message struct {
-	Uid   uint32
-	Date  time.Time
-	Size  uint32
-	Flags []string
-	Headers  []byte
-	Content  []byte
-	Path  string
+	Uid     uint32
+	Date    time.Time
+	Size    uint32
+	Flags   []string
+	Headers []byte
+	Content []byte
+	Path    string
 }
 
 func GetMessage(id uint32) (*Message, error) {
 	var flags string
 	msg := &Message{Uid: id}
-        err := db.QueryRow("SELECT date,size,flags,headers,path FROM messages WHERE id = ?", id).Scan(&msg.Date, &msg.Size, &flags, &msg.Headers, &msg.Path)
-        if err != nil {
-            DoLog(err.Error())
-            return nil, err
-        }
+	err := db.QueryRow("SELECT date,size,flags,headers,path FROM messages WHERE id = ?", id).Scan(&msg.Date, &msg.Size, &flags, &msg.Headers, &msg.Path)
+	if err != nil {
+		DoLog(err.Error())
+		return nil, err
+	}
 
-	if len(flags)>0 {
+	if len(flags) > 0 {
 		msg.Flags = strings.Split(flags, ",")
 	}
 
@@ -45,7 +45,7 @@ func GetMessage(id uint32) (*Message, error) {
 func (m *Message) GetPath() (string, error) {
 	pathglob := "/home/danman/Maildir/cur/" + strings.Split(m.Path, ":")[0] + "*"
 
-        matches, err := filepath.Glob(pathglob)
+	matches, err := filepath.Glob(pathglob)
 	if err != nil {
 		DoLog(err.Error())
 		return "", err

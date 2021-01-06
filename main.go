@@ -1,12 +1,12 @@
 package main
 
 import (
-	"log"
 	"crypto/tls"
+	"log"
 	"os"
 
-	"github.com/emersion/go-imap/server"
 	"github.com/danielkucera/imap-tags/backend"
+	"github.com/emersion/go-imap/server"
 )
 
 type Logger struct {
