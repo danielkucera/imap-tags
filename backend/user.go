@@ -302,8 +302,13 @@ func (u *User) IndexMessage(path string, length int64) error {
 	all.CopyMessages(true, seqSet, "ALL")
 	all.CopyMessages(true, seqSet, orig_to)
 
-	skipInboxList := map[string]bool {
-		"daniel.kucera_gmail@danman.eu": true,
+	skipInboxList := map[string]bool {}
+	skipInboxEnv := os.Getenv("SKIP_INBOX")
+	if len(skipInboxEnv) > 0 {
+		list := strings.Split(skipInboxEnv, ",")
+		for _, addr := range list {
+			skipInboxList[addr] = true
+		}
 	}
 
 	_, skipInbox := skipInboxList[orig_to];
