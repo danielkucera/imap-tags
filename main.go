@@ -29,7 +29,7 @@ func main() {
 
 	s.Debug = Logger{}
 
-	cert, err := tls.LoadX509KeyPair("/etc/letsencrypt/live/danman.eu/fullchain.pem", "/etc/letsencrypt/live/danman.eu/privkey.pem")
+	cert, err := tls.LoadX509KeyPair(os.Getenv("TLS_CRT"), os.Getenv("TLS_KEY"))
 	if err != nil {
 		log.Fatal(err)
 	}
