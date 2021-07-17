@@ -282,6 +282,7 @@ func (u *User) IndexMessage(path string, length int64) error {
 	}
 
 	orig_to := mp.Header.Get("X-Original-To")
+	orig_to = strings.ToLower(orig_to)
 
 	is_list := len(mp.Header.Get("List-Id")) > 0
 
