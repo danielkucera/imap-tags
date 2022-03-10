@@ -26,7 +26,7 @@ func main() {
 
 	s.AllowInsecureAuth = true
 
-	s.Debug = Logger{}
+	//s.Debug = Logger{}
 
 	cert, err := tls.LoadX509KeyPair(os.Getenv("TLS_CRT"), os.Getenv("TLS_KEY"))
 	if err != nil {
