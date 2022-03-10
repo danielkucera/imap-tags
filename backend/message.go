@@ -43,16 +43,30 @@ func GetMessage(id uint32) (*Message, error) {
 }
 
 func (m *Message) GetPath() (string, error) {
-	pathglob := "/home/danman/Maildir/cur/" + strings.Split(m.Path, ":")[0] + "*"
+	dir := "/home/danman/Maildir/cur/"
+	pattern := strings.Split(m.Path, ":")[0] + "*"
 
-	matches, err := filepath.Glob(pathglob)
+	d, err := os.Open(dir)
 	if err != nil {
-		DoLog(err.Error())
 		return "", err
 	}
-	DoLog("found path: %s", matches)
+	defer d.Close()
 
-	return matches[0], nil
+	names, _ := d.Readdirnames(-1)
+	sort.Strings(names)
+
+	for _, n := range names {
+		matched, err := filepath.Match(pattern, n)
+		if err != nil {
+			return "", err
+		}
+		if matched {
+			DoLog("found path: %s", matches)
+			return n, nil
+		}
+	}
+
+	return "", nil
 }
 
 func (m *Message) Body() []byte {
