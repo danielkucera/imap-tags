@@ -1,5 +1,4 @@
-// A memory backend.
-package memory
+package backend
 
 import (
 	"errors"

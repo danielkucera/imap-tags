@@ -1,12 +1,12 @@
-FROM docker.io/library/golang:1.16 as build
+FROM docker.io/library/golang:1.17 as build
 
 WORKDIR /go/src/app
 COPY . .
 
 RUN go get -d -v ./...
-RUN go install -v ./...
+RUN go build ./cmd/imaptags
 
 FROM docker.io/library/ubuntu:latest
-COPY --from=build /go/src/app/imap-tags /usr/bin/imap-tags
+COPY --from=build /go/src/app/imaptags /usr/bin/imaptags
 
-CMD ["imap-tags"]
+CMD ["imaptags"]

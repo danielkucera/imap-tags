@@ -1,4 +1,4 @@
-package memory
+package backend
 
 import (
 	"bufio"
@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"os"
 
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/backend/backendutil"
@@ -53,7 +54,6 @@ func (m *Message) GetPath() (string, error) {
 	defer d.Close()
 
 	names, _ := d.Readdirnames(-1)
-	sort.Strings(names)
 
 	for _, n := range names {
 		matched, err := filepath.Match(pattern, n)
@@ -61,7 +61,7 @@ func (m *Message) GetPath() (string, error) {
 			return "", err
 		}
 		if matched {
-			DoLog("found path: %s", matches)
+			DoLog("found path: %s", n)
 			return n, nil
 		}
 	}

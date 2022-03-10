@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/danielkucera/imap-tags/backend"
+	"imaptags/backend"
 	"github.com/emersion/go-imap/server"
 )
 
@@ -18,8 +18,7 @@ func (l Logger) Write(p []byte) (n int, err error) {
 }
 
 func main() {
-	// Create a memory backend
-	be := memory.New(os.Getenv("DB_CONN"))
+	be := backend.New(os.Getenv("DB_CONN"))
 
 	// Create a new server
 	s := server.New(be)
